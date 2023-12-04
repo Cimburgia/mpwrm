@@ -35,23 +35,20 @@ void init_unit_data(){
 */
 sample_deltas *sample() {
     CFDictionaryRef cpusamp_a  = IOReportCreateSamples(unit->cpu_sub, unit->cpu_sub_chann, NULL);
-    CFDictionaryRef pwrsamp_a  = IOReportCreateSamples(unit->pwr_sub, unit->pwr_sub_chann, NULL);
     nanosleep((const struct timespec[]){{0, TIME_BETWEEN_MEASUREMENTS}}, NULL);
     CFDictionaryRef cpusamp_b  = IOReportCreateSamples(unit->cpu_sub, unit->cpu_sub_chann, NULL);
-    CFDictionaryRef pwrsamp_b  = IOReportCreateSamples(unit->pwr_sub, unit->pwr_sub_chann, NULL);
-  
     CFDictionaryRef cpu_delta  = IOReportCreateSamplesDelta(cpusamp_a, cpusamp_b, NULL);
-    CFDictionaryRef pwr_delta  = IOReportCreateSamplesDelta(pwrsamp_a, pwrsamp_b, NULL);
+
+    // Power should not be delta
+    CFDictionaryRef pwr_sample  = IOReportCreateSamples(unit->pwr_sub, unit->pwr_sub_chann, NULL);
 
     // Done with these
     CFRelease(cpusamp_a);
     CFRelease(cpusamp_b);
-    CFRelease(pwrsamp_a);
-    CFRelease(pwrsamp_b);
     
     sample_deltas *deltas = (sample_deltas *) malloc(sizeof(sample_deltas));
     deltas->cpu_delta = cpu_delta;
-    deltas->pwr_delta = pwr_delta;
+    deltas->pwr_sample = pwr_sample;
     return deltas;
 }
 
@@ -140,13 +137,12 @@ void get_frequency(CFDictionaryRef cpu_delta, cpu_data *data){
 /*
  * Takes a sample and a core id and returns cpu power
  * 
- * This is currently where the issue is. Returns values apparently in mJ, but they are very low
 */
-void get_power(CFDictionaryRef pwr_delta, cpu_data *data){
+void get_power(CFDictionaryRef pwr_sample, cpu_data *data){
     data->pwr = malloc(num_cores * sizeof(float));
     __block int i = 0;
     // Get number of indicies 8 or 18 depending on E vs. P
-    IOReportIterate(pwr_delta, ^int(IOReportSampleRef sample) {
+    IOReportIterate(pwr_sample, ^int(IOReportSampleRef sample) {
         CFStringRef chann_name  = IOReportChannelGetChannelName(sample);
         CFStringRef group       = IOReportChannelGetGroup(sample);
         long      value       = IOReportSimpleGetIntegerValue(sample, 0);
@@ -162,7 +158,7 @@ void get_power(CFDictionaryRef pwr_delta, cpu_data *data){
         } 
         return kIOReportIterOk;
     });
-    if (pwr_delta != NULL) CFRelease(pwr_delta);
+    if (pwr_sample != NULL) CFRelease(pwr_sample);
 }
 
 // Change to syscall
@@ -179,7 +175,7 @@ int main(int argc, char* argv[]) {
     init_unit_data();
     sample_deltas *deltas = sample();
     get_frequency(deltas->cpu_delta, data);
-    get_power(deltas->pwr_delta, data);
+    get_power(deltas->pwr_sample, data);
     
     // Print out measurements
     for(int i = 0; i<num_cores; i++){

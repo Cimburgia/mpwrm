@@ -53,13 +53,13 @@ typedef struct cpu_data{
 
 typedef struct sample_deltas{
     CFDictionaryRef cpu_delta;
-    CFDictionaryRef pwr_delta;
+    CFDictionaryRef pwr_sample;
 } sample_deltas;
 
 void init_unit_data();
 sample_deltas *sample();
 void get_state_residencies(CFDictionaryRef cpu_delta, cpu_data *data);
 void get_frequency(CFDictionaryRef cpu_delta, cpu_data *data);
-void get_power(CFDictionaryRef pwr_delta, cpu_data *data);
+void get_power(CFDictionaryRef pwr_sample, cpu_data *data);
 int get_core_num();
 #endif
